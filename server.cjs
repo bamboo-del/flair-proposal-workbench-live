@@ -4,16 +4,20 @@ const { readFile } = require("node:fs/promises");
 const { openStore } = require("./store.cjs");
 const { engine, normalize, FIELDS, customerHtml, pad } = require("./proposal.cjs");
 const { createRoutes } = require("./lib/routes.cjs");
+const { createRoadshow } = require("./lib/roadshow.cjs");
+const { chatEndpoint, chatOptions } = require("./lib/ai.cjs");
 
 const MIME = { html: "text/html", js: "text/javascript", css: "text/css" };
 const assets = Object.fromEntries([
   "index.html", "assets/app.js", "assets/data.js", "assets/styles.css", "assets/workbench.css",
   "assets/vendor/jszip.min.js", "assets/portal.js", "assets/portal.css",
   "client.html", "ops.html", "assets/client.js", "assets/client.css", "assets/ops.js",
+  "roadshow.html", "assets/roadshow.css", "assets/roadshow.js",
 ].map((file) => ["/" + file, file]));
 assets["/"] = "index.html";
 assets["/client"] = "client.html";
 assets["/ops"] = "ops.html";
+assets["/roadshow"] = "roadshow.html";
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -43,11 +47,12 @@ function parseProject(input, sample) {
 
 async function suggest(text, env, request) {
   if (!env.DEEPSEEK_API_KEY || !env.DEEPSEEK_MODEL) fail(503, "服务器尚未配置 AI，可手动填写假设书。");
-  const response = await request("https://api.deepseek.com/chat/completions", {
-    method: "POST", signal: AbortSignal.timeout(22000),
+  const response = await request(chatEndpoint(env), {
+    method: "POST", signal: AbortSignal.timeout(22000), redirect: "error",
     headers: { "content-type": "application/json", authorization: "Bearer " + env.DEEPSEEK_API_KEY },
     body: JSON.stringify({
       model: env.DEEPSEEK_MODEL, response_format: { type: "json_object" }, max_tokens: 900,
+      ...chatOptions(env),
       messages: [
         { role: "system", content: "仅输出 JSON 对象。用中文提炼用户已脱敏的 Campaign 简介，字符串字段为 " + Object.keys(FIELDS).join(", ") + "。缺信息写待确认；不得编造数字、点位、库存、刊例或来源。" },
         { role: "user", content: text },
@@ -86,6 +91,7 @@ function createApplication(store, env = process.env, request = fetch) {
     run("INSERT OR IGNORE INTO mirror_batches VALUES (?,?,?,?,?,?)", secret(), project, hash(snapshot), snapshot, date(), user);
   }
   const routes = createRoutes({ store, env, request, fail, json, readJson, useLimit });
+  const roadshow = createRoadshow({ env, request, fail, json, readJson, useLimit });
 
   return async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -124,6 +130,7 @@ function createApplication(store, env = process.env, request = fetch) {
           fail(403, "请求来源校验未通过。");
         }
       }
+      if (p[1] === "roadshow") return await roadshow(req, res, p);
       const token = headerToken(req.headers.cookie);
       const me = store.session(token);
       if (p[1] === "session" && method === "POST") {

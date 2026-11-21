@@ -7,7 +7,7 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.cjs",
-    "test": "node --check assets/portal.js && node --check assets/client.js && node --check assets/ops.js && node scripts/verify-workbench.cjs && node --test scripts/verify-online.cjs scripts/verify-selfserve.cjs",
+    "test": "node --check assets/portal.js && node --check assets/client.js && node --check assets/ops.js && node --check assets/roadshow.js && node scripts/verify-workbench.cjs && node --test scripts/verify-online.cjs scripts/verify-selfserve.cjs scripts/verify-redbean.cjs scripts/verify-roadshow.cjs",
     "demo:seed": "node --env-file-if-exists=.env scripts/seed-demo.cjs"
   }
 }

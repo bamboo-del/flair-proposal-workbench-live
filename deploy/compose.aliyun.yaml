@@ -1,0 +1,31 @@
+services:
+  web:
+    build: ..
+    restart: unless-stopped
+    env_file: /opt/flair-proposal/shared/app.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_PATH: /var/lib/flair/flair.sqlite
+      PUBLIC_ORIGIN: https://flair.yisonglian.cn
+    read_only: true
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 0.75
+    volumes:
+      - flair-data:/var/lib/flair
+    networks:
+      edge:
+        aliases: [flair-proposal-web]
+    logging:
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  flair-data:
+
+networks:
+  edge:
+    external: true
+    name: scan-wifi-production_edge

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>投放提案演练 · Flair Proposal</title>
+  <link rel="stylesheet" href="/assets/roadshow.css">
+  <script src="/assets/roadshow.js" defer></script>
+</head>
+<body>
+  <header class="masthead page">
+    <a class="wordmark" href="/roadshow">新云传媒<span>提案工作台</span></a>
+    <nav aria-label="工作台入口"><a href="/client">客户自助</a><a href="/ops">执行调度</a><a href="/">团队工作台</a></nav>
+  </header>
+  <main class="page">
+    <section class="hero" aria-labelledby="campaign-title">
+      <div class="hero-copy">
+        <h1 id="campaign-title">早高峰咖啡补给计划</h1>
+        <p class="byline" id="campaign-brand">Manner Coffee</p>
+        <p id="campaign-context">上海核心商圈公交车身与地铁出入口投放。拟议案例，当前使用合成演示数据。</p>
+        <a class="button primary" href="#brief">调整 Brief <span aria-hidden="true">↓</span></a>
+      </div>
+      <figure class="coverage-graphic">
+        <figcaption><span>目标商圈 · 覆盖示意</span><span id="map-count"></span></figcaption>
+        <div class="coverage-map" id="coverage-map"></div>
+        <p>实心点表示命中。连线仅示意商圈顺序。</p>
+      </figure>
+    </section>
+
+    <div id="scoreline" class="scoreline" aria-label="当前方案指标"></div>
+    <div class="source-row" id="source-row" hidden>
+      <div class="source-choices" aria-label="方案数据源">
+        <button class="button" type="button" id="show-demo" aria-pressed="true">合成演示方案</button>
+        <button class="button" type="button" id="show-live" aria-pressed="false" disabled>红豆核验方案</button>
+      </div>
+      <p class="faint" id="source-note"></p>
+      <a class="source-link" href="#inventory-title">查询红豆档期 ↓</a>
+    </div>
+
+    <section class="brief-layout" aria-label="客户需求与投放假设">
+      <form class="brief-form" id="brief" novalidate>
+        <div class="section-heading">
+          <h2>客户 Brief</h2>
+          <button type="button" class="button" id="load-example">还原 Manner 示例</button>
+        </div>
+        <label class="field">
+          <span>用一段话描述投放需求</span>
+          <textarea rows="4" id="brief-text" maxlength="1600" spellcheck="false"></textarea>
+        </label>
+        <div class="text-actions">
+          <button type="button" class="button" id="extract">提取到表单</button>
+          <p class="faint" id="extract-note" role="status"></p>
+        </div>
+        <fieldset class="field-row">
+          <legend>客户与品牌</legend>
+          <div class="pairs">
+            <label class="field"><span>品牌名称</span><input name="brandType" maxlength="80"></label>
+            <label class="field"><span>行业</span><select name="industry"></select></label>
+          </div>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>生意目标</legend>
+          <div class="pairs">
+            <label class="field"><span>主要任务</span><select name="businessGoal"></select></label>
+            <label class="field"><span>业务背景</span><input name="businessNote" maxlength="300"></label>
+          </div>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>活动主目标</legend>
+          <label class="field"><span class="visually-hidden">活动主目标</span><select name="campaignGoal"></select></label>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>目标人群与商圈</legend>
+          <div class="choices" id="audiences"></div>
+          <details class="zone-picker">
+            <summary id="zone-summary">选择目标商圈与优先级</summary>
+            <div class="zone-options" id="zones"></div>
+          </details>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>档期与预算</legend>
+          <div class="pairs dates">
+            <label class="field"><span>上刊日</span><input type="date" name="startDate" min="2027-01-01" max="2027-12-31" required></label>
+            <label class="field"><span>投放天数</span><select name="duration"></select></label>
+            <label class="field"><span>预算（万元）</span><input type="number" name="budgetWan" min="30" max="2000" step="1" required></label>
+          </div>
+          <div class="presets" aria-label="预算档位">
+            <button type="button" data-budget="100" aria-pressed="false">100 万</button>
+            <button type="button" data-budget="200" aria-pressed="false">200 万</button>
+            <button type="button" data-budget="500" aria-pressed="false">500 万</button>
+          </div>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>媒体组合</legend>
+          <div class="choices">
+            <label><input type="checkbox" name="media" value="bus">公交车身</label>
+            <label><input type="checkbox" name="media" value="metro">地铁出入口</label>
+          </div>
+          <label class="field bus-format"><span>车身形式</span><select name="busFormat"></select></label>
+        </fieldset>
+        <fieldset class="field-row">
+          <legend>效果衡量</legend>
+          <div class="choices" id="kpis"></div>
+          <label class="field"><span>验收补充</span><input name="kpiNote" maxlength="200"></label>
+        </fieldset>
+        <div class="form-actions">
+          <button type="submit" class="button primary" id="generate">生成提案</button>
+          <span id="plan-status" class="faint" role="status" aria-live="polite"></span>
+        </div>
+        <div class="conflicts" id="conflicts" hidden></div>
+      </form>
+
+      <aside class="assumption" aria-labelledby="assumption-title">
+        <div class="section-heading"><h2 id="assumption-title">一页投放假设</h2></div>
+        <p class="faint" id="assumption-context">生成后逐条回应客户的七项需求。</p>
+        <p class="assumption-delta" id="assumption-delta" hidden></p>
+        <div id="assumption-rows"></div>
+        <div class="form-actions">
+          <button class="button" id="download" type="button" disabled>下载 HTML</button>
+          <button class="button" id="print" type="button" disabled>打印 / PDF</button>
+        </div>
+      </aside>
+    </section>
+
+    <div id="report" hidden>
+      <section class="report-section" aria-labelledby="judging-title">
+        <div class="section-heading"><h2 id="judging-title">七项评审维度</h2></div>
+        <ol class="judging" id="dimensions"></ol>
+      </section>
+      <section class="report-section" aria-labelledby="delta-title">
+        <div class="section-heading"><h2 id="delta-title">方案调整</h2><span id="timing" class="faint"></span></div>
+        <div id="delta"></div>
+      </section>
+      <section class="report-section details-layout" aria-label="资源与执行明细">
+        <div id="resources"></div>
+        <div id="execution"></div>
+      </section>
+      <section class="report-section supplemental" aria-labelledby="supplemental-title">
+        <div class="section-heading"><h2 id="supplemental-title">补充核验</h2></div>
+        <div class="details-layout">
+          <section aria-labelledby="inventory-title">
+            <h3 id="inventory-title">红豆档期</h3>
+            <button type="button" class="button" id="query-inventory">查询当前条件</button>
+            <div id="inventory-result" class="supplemental-result" aria-live="polite"></div>
+          </section>
+          <section aria-labelledby="ai-title">
+            <h3 id="ai-title">AI 辅助提案解读</h3>
+            <button type="button" class="button" id="query-ai" disabled>生成解读</button>
+            <p class="faint" id="ai-state"></p>
+            <div id="ai-result" class="supplemental-result" aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer class="page footer"><span>新云传媒 · 户外媒体提案演练</span><a href="#campaign-title">回到顶部 ↑</a></footer>
+</body>
+</html>
