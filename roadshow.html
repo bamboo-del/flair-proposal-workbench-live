@@ -6,6 +6,8 @@
   <meta name="robots" content="noindex">
   <title>投放提案演练 · Flair Proposal</title>
   <link rel="stylesheet" href="/assets/roadshow.css">
+  <link rel="stylesheet" href="/assets/proposal-map.css">
+  <script src="/assets/proposal-map.js" defer></script>
   <script src="/assets/roadshow.js" defer></script>
 </head>
 <body>
@@ -19,12 +21,14 @@
         <h1 id="campaign-title">早高峰咖啡补给计划</h1>
         <p class="byline" id="campaign-brand">Manner Coffee</p>
         <p id="campaign-context">上海核心商圈公交车身与地铁出入口投放。拟议案例，当前使用合成演示数据。</p>
-        <a class="button primary" href="#brief">调整 Brief <span aria-hidden="true">↓</span></a>
+        <a class="button primary" href="/client">创建我的提案</a>
+        <a class="button" href="#brief">调整当前案例 <span aria-hidden="true">↓</span></a>
       </div>
       <figure class="coverage-graphic">
-        <figcaption><span>目标商圈 · 覆盖示意</span><span id="map-count"></span></figcaption>
+        <figcaption><span id="map-title">目标商圈 · 覆盖示意</span><span id="map-count"></span></figcaption>
+        <div id="actual-coverage-map" hidden></div>
         <div class="coverage-map" id="coverage-map"></div>
-        <p>实心点表示命中。连线仅示意商圈顺序。</p>
+        <p id="map-schematic-note">实心点表示命中。连线仅示意商圈顺序。</p>
       </figure>
     </section>
 

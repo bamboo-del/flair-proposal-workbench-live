@@ -172,26 +172,54 @@
       d.owner, "第 " + d.seq + " 版", label[d.status] + (d.review ? " · " + (d.review.decision === "accepted" ? "已采纳" : "已退回") : ""), d.window.start + " 起", d.budgetWan + " 万", d.counts.bus + " / " + d.counts.metro,
       (d.total[0] / 10000).toFixed(1) + "–" + (d.total[1] / 10000).toFixed(1) + " 万", d.coverage + "%",
       el("span", {}, el("button", { type: "button", class: "portal-button secondary", text: "查看", on: { click: run(() => viewDraft(d.id)) } }),
-        me.role !== "viewer" ? el("button", { type: "button", class: "portal-button secondary", text: "采纳", on: { click: run(() => review(d.id, "accepted")) } }) : null,
-        me.role !== "viewer" ? el("button", { type: "button", class: "portal-button secondary", text: "退回", on: { click: run(() => review(d.id, "returned")) } }) : null),
+        me.role !== "viewer" && d.status === "submitted" ? el("button", { type: "button", class: "portal-button secondary", text: "采纳并交接", on: { click: run(() => review(d.id, "accepted")) } }) : null,
+        me.role !== "viewer" && d.status === "submitted" ? el("button", { type: "button", class: "portal-button secondary", text: "退回", on: { click: run(() => review(d.id, "returned")) } }) : null),
     ]))] : [el("p", { text: "客户尚未生成草稿。" })]));
   }
   async function viewDraft(id) {
     const d = await api(path("/client-drafts/" + id));
     $("draftView").hidden = false;
     $("draftView").innerHTML = d.html; // 服务端已转义
+    window.FlairMap.mount($("draftView").querySelector("[data-proposal-map]"), d.plan.map);
     $("draftView").scrollIntoView({ behavior: "smooth" });
   }
   async function review(id, decision) {
     const note = decision === "returned" ? prompt("退回原因（客户可见）", "") ?? "" : "已采纳，团队将按审核流程出具正式报价并锁位。";
     await api(path("/client-drafts/" + id + "/review"), "POST", { decision, note });
-    await clients();
-    tell("已记录审核结论。正式报价请在工作台生成固定版本。");
+    await Promise.all([clients(), handoff()]);
+    tell("已记录审核结论。采纳的版本已同步至执行交接。");
+  }
+
+  async function handoff() {
+    const target = $("handoffRows");
+    const [data, map] = await Promise.all([api(path("/handoff")), api(path("/map-evidence"))]);
+    $("mapForm").hidden = me.role === "viewer";
+    $("mapForm").elements.shareUrl.value = map?.shareUrl || "";
+    $("mapForm").elements.metroShareUrl.value = map?.metroShareUrl || "";
+    $("mapStatus").textContent = map ? `${map.source}，${map.count} 条路线或点位。新草稿将按资源名称匹配。` : "暂无地图资料。";
+    if (!data) { target.textContent = "采纳客户提交的版本后，这里会显示线路、点位、档期和待复核事项。"; return; }
+    const bus = data.media.filter((row) => row.kind === "bus");
+    target.replaceChildren(el("p", { text: `${data.title} · 第 ${data.seq} 版 · ${data.window.start} 至 ${data.window.end}` }),
+      table(["资源", "媒体", "数量", "执行"], data.media.map((row) => [row.name, row.kind === "bus" ? "公交" : "地铁", row.units,
+        row.kind === "bus" && me.role !== "viewer" ? el("button", { type: "button", class: "portal-button secondary", text: "带入排班", on: { click: () => {
+          const form = $("configForm");
+          form.route.value = row.query || row.name.split("·")[0].trim();
+          form.startDate.value = data.window.start;
+          form.duration.value = Math.round((Date.parse(data.window.end) - Date.parse(data.window.start)) / 86400000) + 1;
+          form.minUnits.value = row.units;
+          form.format.value = row.format;
+          form.fleetSource.value = "csv";
+          form.scrollIntoView({ behavior: "smooth" });
+          tell("已带入选中线路和档期，请填写合同约束并录入真实车级台账，再保存。");
+        } } }) : "核对点位、面积与夜间施工"])),
+      el("p", { text: bus.length > 1 ? "按单条公交线路带入排班。锁位、刊例及车辆安排由团队确认。" : "请确认锁位和施工条件后排班。" }),
+      el("ul", {}, ...data.pending.map((item) => el("li", { text: item }))));
   }
 
   async function selectProject(id) {
     projectId = id;
     history.replaceState(null, "", "#p=" + id);
+    $("teamProjectLink").href = "/#p=" + encodeURIComponent(id);
     const data = await api(path("/dispatch"));
     types = data.types; defaults = data.defaults; state = data.state;
     $("changeForm").type.replaceChildren(...Object.entries(types).map(([v, t]) => el("option", { value: v, text: t })));
@@ -199,7 +227,7 @@
     $("previewView").replaceChildren();
     renderPlan();
     if (state) await changes();
-    await clients();
+    await Promise.all([clients(), handoff()]);
   }
   async function start() {
     try { me = await api("/api/session"); } catch { me = null; }
@@ -219,6 +247,21 @@
   $("projectSelect").addEventListener("change", run((e) => selectProject(e.target.value)));
   $("configForm").addEventListener("submit", run(saveConfig));
   $("changeForm").addEventListener("submit", run(createChange));
+  $("mapForm").addEventListener("submit", run(async (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const file = form.elements.geojson.files[0];
+    if (file && file.size > 1450000) throw new Error("地图坐标文件不能超过 1.45 MB。");
+    const geojson = file ? JSON.parse(await file.text()) : undefined;
+    await api(path("/map-evidence"), "PUT", { shareUrl: form.elements.shareUrl.value.trim(), metroShareUrl: form.elements.metroShareUrl.value.trim(), geojson });
+    form.elements.geojson.value = "";
+    await handoff();
+    tell("地图资料已保存，新生成的提案会关联匹配的路线与点位。");
+  }));
+  document.querySelector(".ss-report-nav").addEventListener("click", (event) => {
+    const link = event.target.closest("a");
+    if (link) { event.preventDefault(); document.getElementById(link.hash.slice(1))?.scrollIntoView({ behavior: "smooth" }); }
+  });
   $("grantForm").addEventListener("submit", run(async (event) => { event.preventDefault(); await api(path("/clients"), "POST", { name: event.target.name.value }); event.target.reset(); await clients(); tell("已授权。"); }));
   start().catch((error) => tell(error.message, "error"));
 })();

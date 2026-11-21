@@ -23,10 +23,18 @@
     return body;
   }
   const storeKey = () => "flair-client:" + me.name + ":" + projectId;
-  const save = (brief) => { try { localStorage.setItem(storeKey(), JSON.stringify({ brief, parentId, title: $("draftTitle").value })); } catch {} };
+  const save = (brief) => { try { localStorage.setItem(storeKey(), JSON.stringify({ brief, parentId, autoMedia: $("autoMedia").checked, title: $("draftTitle").value })); } catch {} };
   const load = () => { try { return JSON.parse(localStorage.getItem(storeKey()) || "null"); } catch { return null; } };
   const setHash = () => { window.history.replaceState(null, "", "#p=" + projectId + (current ? "&d=" + current.id : "")); };
   const hash = () => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
+  const selection = () => ({ brief: brief(), autoMedia: $("autoMedia").checked, live: $("autoMedia").checked });
+  function view(name) {
+    $("intakeView").hidden = name !== "Brief";
+    $("resultCard").hidden = name !== "Proposal" || !current;
+    $("historyCard").hidden = name !== "History";
+    $("goProposal").disabled = !current;
+    for (const step of ["Brief", "Proposal", "History"]) $("go" + step).setAttribute("aria-pressed", String(step === name));
+  }
 
   /* ---------- 表单 ---------- */
   function options(select, map) {
@@ -109,9 +117,10 @@
     save(b);
     const ticket = ++checking;
     try {
-      const { plan, inventory: inv } = await api("/api/client/projects/" + projectId + "/check", "POST", { brief: b });
+      const { plan, inventory: inv } = await api("/api/client/projects/" + projectId + "/check", "POST", { ...selection(), brief: b });
       if (ticket !== checking) return;
-      const dateChanged = !lastPlan || lastPlan.window?.start !== plan.window?.start || lastPlan.brief?.duration !== plan.brief?.duration;
+      const dateChanged = !lastPlan || lastPlan.window?.start !== plan.window?.start || lastPlan.brief?.duration !== plan.brief?.duration ||
+        inv.map((r) => r.id).join() !== inventory.map((r) => r.id).join();
       inventory = inv;
       lastPlan = plan;
       if (dateChanged) renderResources();
@@ -145,6 +154,7 @@
     if (patch.removeMustKeep) b.mustKeep = b.mustKeep.filter((r) => r.id !== patch.removeMustKeep);
     if (patch.mustKeep) b.mustKeep = b.mustKeep.map((r) => r.id === patch.mustKeep.id ? patch.mustKeep : r);
     if (patch.replaceMustKeep) b.mustKeep = b.mustKeep.map((r) => r.id === patch.replaceMustKeep.from ? { id: patch.replaceMustKeep.to, units: patch.replaceMustKeep.units } : r);
+    if (patch.media || patch.mode || patch.busFormat) $("autoMedia").checked = false;
     hiddenKeep = [];
     writeForm(b);
     tell("已按您的选择调整条件，正在重新计算。");
@@ -156,23 +166,29 @@
     $("generate").disabled = true;
     tell("正在生成方案…");
     try {
-      const draft = await api("/api/client/projects/" + projectId + "/drafts", "POST", { brief: brief(), parentId, title: $("draftTitle").value });
+      const draft = await api("/api/client/projects/" + projectId + "/drafts", "POST", { ...selection(), parentId, title: $("draftTitle").value });
       show(draft);
       parentId = draft.id;
       save(brief());
       tell("已生成并保存第 " + draft.seq + " 版草稿。" + (draft.narrative?.note ? " " + draft.narrative.note : ""));
       await loadHistory();
     } catch (error) {
-      if (error.body?.conflicts) renderCheck({ ...lastPlan, status: "conflict", conflicts: error.body.conflicts });
+      if (error.body?.conflicts && lastPlan?.totals) renderCheck({ ...lastPlan, status: "conflict", conflicts: error.body.conflicts });
+      $("detailBrief").open = true;
       tell(error.message, "error");
     } finally { $("generate").disabled = lastPlan?.status !== "ready"; }
   }
   function show(draft) {
     current = draft;
     setHash();
-    $("resultCard").hidden = false;
+    view("Proposal");
     $("resultTitle").textContent = draft.title + " · 第 " + draft.seq + " 版";
     $("proposal").innerHTML = draft.html; // 服务端已转义
+    window.FlairMap.mount($("proposal").querySelector("[data-proposal-map]"), draft.plan.map);
+    $("proposal").querySelector(".ss-report-nav").addEventListener("click", (event) => {
+      const target = event.target.closest("a");
+      if (target) { event.preventDefault(); document.getElementById(target.hash.slice(1))?.scrollIntoView({ behavior: "smooth" }); }
+    });
     const base = "/api/client/drafts/" + draft.id + "/export?format=";
     $("exportHtml").href = base + "html"; $("exportCsv").href = base + "csv"; $("exportJson").href = base + "json";
     $("submitDraft").disabled = draft.status === "submitted";
@@ -194,17 +210,18 @@
 
   /* ---------- 项目与登录 ---------- */
   async function selectProject(id, draftId) {
+    clearTimeout(timer); checking++;
     projectId = id;
     $("projectSelect").value = id;
     current = null; parentId = null; lastPlan = null; hiddenKeep = [];
-    $("resultCard").hidden = true;
+    view("Brief");
     const saved = load();
     const project = projects.find((p) => p.id === id);
-    const base = saved?.brief || { ...catalog.defaults, industry: catalog.options.industry[project.industry] ? project.industry : "food", zones: catalog.industries[project.industry] || catalog.defaults.zones };
+    const base = saved?.brief || project.defaults || catalog.defaults;
     parentId = saved?.parentId || null;
+    $("autoMedia").checked = saved?.autoMedia ?? true;
     $("draftTitle").value = saved?.title || "";
-    const { inventory: inv } = await api("/api/client/projects/" + id + "/check", "POST", { brief: base });
-    inventory = inv;
+    inventory = [];
     writeForm(base);
     await loadHistory();
     if (draftId) await open(draftId).catch(() => {});
@@ -235,8 +252,10 @@
   });
   $("logout").addEventListener("click", async () => { await api("/api/session", "DELETE").catch(() => {}); location.hash = ""; location.reload(); });
   $("projectSelect").addEventListener("change", (e) => selectProject(e.target.value).catch((error) => tell(error.message, "error")));
+  for (const step of ["Brief", "Proposal", "History"]) $("go" + step).addEventListener("click", () => view(step));
   form.addEventListener("input", (event) => {
     if (event.target.name === "budgetWan") $("budgetRange").value = form.budgetWan.value;
+    if (["media", "busFormat", "mode"].includes(event.target.name) || event.target.dataset.keep) $("autoMedia").checked = false;
     if (event.target.name === "media") renderResources();
     schedule();
   });
@@ -251,6 +270,7 @@
   $("reviseDraft").addEventListener("click", () => {
     if (!current) return;
     parentId = current.id; hiddenKeep = [];
+    view("Brief"); $("detailBrief").open = true;
     writeForm(current.brief);
     tell("已载入第 " + current.seq + " 版的条件。修改后点「生成方案」会生成新草稿，原版本保留。");
     form.scrollIntoView({ behavior: "smooth" });
@@ -267,20 +287,25 @@
   $("submitDraft").addEventListener("click", async () => {
     try { await api("/api/client/drafts/" + current.id + "/submit", "POST", {}); tell("已提交团队审核。正式报价、锁位与执行确认由团队完成。"); await open(current.id); } catch (error) { tell(error.message, "error"); }
   });
-  $("quickExtract").addEventListener("click", async () => {
+  async function extractAndContinue(generateNow) {
     const text = $("quickText").value.trim();
     if (!text) return tell("请先写一段需求。", "error");
     if (!$("quickAnon").checked) return tell("请先确认内容已去除真实客户名、联系人和成交价。", "error");
-    $("quickExtract").disabled = true;
+    $("quickExtract").disabled = $("quickGenerate").disabled = true;
+    const selectedProject = projectId;
     try {
       const result = await api("/api/client/ai/extract", "POST", { text, anonymized: true });
+      if (selectedProject !== projectId) return;
       const b = { ...brief(), ...result.prefill };
       hiddenKeep = [];
       writeForm(b);
       for (const card of form.querySelectorAll("[data-filled]")) card.removeAttribute("data-filled");
       $("quickNote").textContent = result.note + (result.missing.length ? " 待您补充：" + result.missing.map((m) => m.label).join("、") + "（已保留默认值）。" : " 所有必填项均已预填，请逐项确认。");
-      check();
-    } catch (error) { tell(error.message, "error"); } finally { $("quickExtract").disabled = false; }
-  });
+      if (generateNow) { $("autoMedia").checked = true; await generate(); }
+      else { $("detailBrief").open = true; check(); }
+    } catch (error) { tell(error.message, "error"); } finally { $("quickExtract").disabled = $("quickGenerate").disabled = false; }
+  }
+  $("quickExtract").addEventListener("click", () => extractAndContinue(false));
+  $("quickGenerate").addEventListener("click", () => extractAndContinue(true));
   start().catch((error) => tell(error.message, "error"));
 })();

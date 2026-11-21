@@ -7,9 +7,10 @@
     <title>客户自助提案 · Flair Proposal</title>
     <link rel="stylesheet" href="/assets/portal.css" />
     <link rel="stylesheet" href="/assets/client.css" />
+    <link rel="stylesheet" href="/assets/proposal-map.css" />
   </head>
   <body class="ss-app">
-    <header class="product-bar"><strong>Flair Proposal</strong><span>客户自助提案 · 选需求 → 看方案 → 改条件 → 生成新方案</span><span id="whoami"></span></header>
+    <header class="product-bar"><strong>Flair Proposal</strong><span>客户提案</span><a href="/roadshow" class="portal-button secondary">案例演示</a><span id="whoami"></span></header>
     <main class="ss-main">
       <p id="msg" role="status" aria-live="polite"></p>
 
@@ -31,15 +32,21 @@
           <button class="portal-button secondary" type="button" id="logout">退出</button>
         </div>
 
-        <div class="ss-layout">
+        <nav class="ss-report-nav" aria-label="提案进度">
+          <button type="button" class="portal-button secondary" id="goBrief" aria-pressed="true">描述需求</button>
+          <button type="button" class="portal-button secondary" id="goProposal" disabled>查看方案</button>
+          <button type="button" class="portal-button secondary" id="goHistory">版本与审核</button>
+        </nav>
+        <div class="ss-layout" id="intakeView">
           <form id="briefForm" class="ss-form" novalidate>
             <fieldset class="ss-card" id="quickCard">
-              <legend>用一段话描述需求（可选）</legend>
-              <textarea id="quickText" rows="3" maxlength="2000" placeholder="例：某连锁咖啡品牌 6 月中旬上新品，想在静安寺、南京西路做到店引流，主要是上班族，预算 150 万，投一个月，公交和地铁都要，看核销和扫码。"></textarea>
+              <legend>说说您这次想解决什么</legend>
+              <textarea id="quickText" rows="4" maxlength="2000" placeholder="例如：我们想把工作日早高峰的上班族引到静安寺和南京西路门店。2027 年 6 月中旬开始，投一个月，预算 150 万。"></textarea>
               <label class="inline-check"><input type="checkbox" id="quickAnon" /> 已去除真实客户名、联系人和成交价</label>
-              <div class="portal-actions"><button class="portal-button secondary" type="button" id="quickExtract">提取到表单</button><span id="quickNote" class="ss-muted"></span></div>
+              <div class="portal-actions"><button class="portal-button" type="button" id="quickGenerate">直接生成推荐方案</button><button class="portal-button secondary" type="button" id="quickExtract">先核对需求</button><span id="quickNote" class="ss-muted" role="status"></span></div>
             </fieldset>
 
+            <details id="detailBrief" class="ss-advanced"><summary>查看或调整投放条件</summary>
             <fieldset class="ss-card" data-key="customer"><legend>① 客户与品牌</legend>
               <div class="ss-row">
                 <label>行业<select name="industry"></select></label>
@@ -66,6 +73,7 @@
               <input type="range" id="budgetRange" min="30" max="1000" step="10" aria-label="预算滑杆" />
             </fieldset>
             <fieldset class="ss-card" data-key="media"><legend>⑥ 媒体组合</legend>
+              <label class="inline-check"><input type="checkbox" id="autoMedia" checked /> 由系统建议公交和地铁组合</label>
               <div class="ss-choices">
                 <label class="inline-check"><input type="checkbox" name="media" value="bus" /> 公交车身</label>
                 <label class="inline-check"><input type="checkbox" name="media" value="metro" /> 地铁出入口</label>
@@ -85,6 +93,7 @@
                 <label class="inline-check"><input type="checkbox" id="onlyMine" /> 只看已指定</label></div>
               <div class="ss-resources" id="resourceBox"></div>
             </fieldset>
+            </details>
           </form>
 
           <aside class="ss-side">
@@ -97,12 +106,12 @@
               <button class="portal-button ss-primary" type="button" id="generate">生成方案</button>
               <p class="ss-muted" id="parentNote"></p>
             </section>
-            <section class="ss-card" id="historyCard">
-              <h2>我的草稿</h2>
-              <div id="historyBox" class="ss-muted">暂无草稿。</div>
-            </section>
           </aside>
         </div>
+        <section class="ss-card" id="historyCard" hidden>
+          <h2>版本与审核</h2>
+          <div id="historyBox" class="ss-muted">暂无草稿。</div>
+        </section>
 
         <section class="ss-card" id="resultCard" hidden>
           <div class="ss-toolbar">
@@ -121,6 +130,6 @@
         </section>
       </section>
     </main>
-    <script src="/assets/client.js"></script>
+    <script src="/assets/proposal-map.js"></script><script src="/assets/client.js"></script>
   </body>
 </html>

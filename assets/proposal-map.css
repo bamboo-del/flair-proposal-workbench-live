@@ -1,0 +1,13 @@
+.proposal-map { color: #213332; background: #f1f5f3; border: 1px solid #cfdbd7; border-radius: 10px; padding: .65rem; }
+.proposal-map-frame { position: relative; }
+.flair-provider-map, .flair-route-canvas { display: block; border: 0; width: 100%; height: clamp(290px, 44vh, 560px); background: #f1f5f3; border-radius: 8px; }
+.flair-route-canvas { cursor: grab; touch-action: pan-y; }
+.flair-route-canvas:active { cursor: grabbing; }
+.proposal-map-tools { position: absolute; top: .5rem; left: .5rem; display: flex; gap: .25rem; }
+.proposal-map-tools button, .proposal-map-items button { border: 1px solid #acbdb7; border-radius: 5px; background: white; color: #21403a; padding: .35rem .55rem; font: inherit; cursor: pointer; }
+.proposal-map-items button[aria-pressed="true"] { color: white; background: #22574e; }
+.proposal-map-items { display: flex; gap: .4rem; flex-wrap: wrap; margin: .45rem 0; }
+.proposal-map-note { margin: .4rem 0 0; color: #48605c; font-size: .83rem; }
+.proposal-map > a { margin-inline-end: .75rem; }
+.coverage-graphic .proposal-map a { color: #22574e; }
+.coverage-graphic .flair-provider-map, .coverage-graphic .flair-route-canvas { height: clamp(260px, 32vh, 400px); }

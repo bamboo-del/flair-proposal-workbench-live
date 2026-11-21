@@ -186,6 +186,8 @@
 
   async function open(id) {
     editor(await api("/api/projects/" + id));
+    history.replaceState(null, "", "#p=" + id);
+    $("opsLink").href = "/ops#p=" + encodeURIComponent(id);
     $("projectPanel").hidden = false;
     $("homePanel").hidden = true;
     $("homeLink").hidden = false;
@@ -262,7 +264,10 @@
     $("signOut").hidden = false;
     $("opsLink").hidden = false;
     $("accountLabel").textContent = me.name + " · " + roles[me.role];
-    await home();
+    const selected = new URLSearchParams(location.hash.slice(1)).get("p");
+    if (selected && /^[a-zA-Z0-9_-]{32}$/.test(selected)) {
+      try { await open(selected); } catch { await home(); }
+    } else await home();
   }
 
   setupFields();
@@ -330,7 +335,7 @@
     await select("versions");
     tell("已生成客户版版本。");
   };
-  assignButton("homeLink", home);
+  assignButton("homeLink", async () => { history.replaceState(null, "", "/"); $("opsLink").href = "/ops"; await home(); });
   assignButton("newProjectLink", () => $("newProjectDialog").showModal());
   assignButton("closeNewProject", () => $("newProjectDialog").close());
   assignButton("closeShare", () => $("shareDialog").close());

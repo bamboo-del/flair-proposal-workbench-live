@@ -316,7 +316,15 @@ function presentResult(result) {
   $("campaign-brand").textContent = plan.brief.brandType || "投放演练";
   $("campaign-context").textContent = plan.brief.media.map(kind).join("与") + "投放。当前为拟议案例。";
   renderScore(plan);
-  renderMap(plan.coverage);
+  const showMap = Boolean(plan.map?.features?.length || plan.map?.shareUrl);
+  $("map-title").textContent = showMap ? "投放路线与点位" : "目标商圈 · 覆盖示意";
+  $("coverage-map").hidden = showMap;
+  $("map-schematic-note").hidden = showMap;
+  $("actual-coverage-map").hidden = !showMap;
+  if (showMap) {
+    $("map-count").textContent = `${plan.map.features.length} 个地图要素`;
+    window.FlairMap.mount($("actual-coverage-map"), plan.map);
+  } else renderMap(plan.coverage);
   renderAssumption(plan);
   renderDimensions(result);
   renderDelta(result.diff, plan.synthetic);
@@ -357,6 +365,10 @@ async function updatePlan(brief, version) {
     $("conflicts").hidden = true;
     presentResult(result);
     $("plan-status").textContent = "已更新本轮提案";
+    if (catalog.platformMap) queryExtra($("query-inventory"), $("inventory-result"), "/inventory", (data, ms) => {
+      renderInventory(data, ms);
+      if (liveResult) presentResult(liveResult);
+    });
   } catch (error) {
     if (version !== requestVersion) return;
     $("conflicts").hidden = true;

@@ -234,6 +234,16 @@ test("在线流程：客户入口、草稿历史、分享导出、团队审核�
     const team = (await call("GET", "/api/projects/" + a.id + "/client-drafts", undefined, editor)).body;
     assert.equal(team.length, 2, JSON.stringify(team));
     assert.equal((await call("POST", "/api/projects/" + a.id + "/client-drafts/" + v2.body.id + "/review", { decision: "accepted", note: "进入正式报价" }, editor)).status, 200);
+    const handoff = await call("GET", "/api/projects/" + a.id + "/handoff", undefined, editor);
+    assert.equal(handoff.body.id, v2.body.id, "采纳版本直接成为调度交接版本");
+    assert.ok(handoff.body.media.length && handoff.body.schedule.nights.length);
+    assert.equal((await call("GET", "/api/projects/" + b.id + "/handoff", undefined, editor)).body, null);
+    assert.equal((await call("GET", "/api/projects/" + a.id + "/handoff", undefined, alpha)).status, 403);
+    assert.equal((await call("PUT", "/api/projects/" + a.id + "/map-evidence", { shareUrl: "https://example.test/track" }, editor)).status, 422);
+    const geojson = { type: "FeatureCollection", features: [{ type: "Feature", properties: { kind: "bus", key: "926路" },
+      geometry: { type: "LineString", coordinates: [[121.43, 31.21], [121.46, 31.2]] } }] };
+    assert.equal((await call("PUT", "/api/projects/" + a.id + "/map-evidence", { geojson }, editor)).body.count, 1);
+    assert.equal((await call("GET", "/api/projects/" + b.id + "/map-evidence", undefined, editor)).body, null);
     assert.equal((await call("GET", "/api/projects/" + b.id + "/client-drafts", undefined, editor)).body.length, 0, "草稿按项目隔离");
 
     const ops = "/api/projects/" + a.id;

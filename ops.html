@@ -7,9 +7,10 @@
     <title>执行调度与变更单 · Flair Proposal</title>
     <link rel="stylesheet" href="/assets/portal.css" />
     <link rel="stylesheet" href="/assets/client.css" />
+    <link rel="stylesheet" href="/assets/proposal-map.css" />
   </head>
   <body class="ss-app">
-    <header class="product-bar"><strong>Flair Proposal</strong><span>执行调度 · 变更单 · 客户草稿审核</span><a class="portal-button secondary" href="/">返回工作台</a><span id="whoami"></span></header>
+    <header class="product-bar"><strong>Flair Proposal</strong><span>执行调度 · 变更单 · 客户草稿审核</span><a class="portal-button secondary" id="teamProjectLink" href="/">团队工作台</a><span id="whoami"></span></header>
     <main class="ss-main ss-ops">
       <p id="msg" role="status" aria-live="polite"></p>
       <section class="portal-card sign-in" id="loginPanel" hidden>
@@ -19,6 +20,7 @@
 
       <section id="appPanel" hidden>
         <div class="ss-toolbar"><label>项目<select id="projectSelect"></select></label></div>
+        <nav class="ss-report-nav" aria-label="执行工作流"><a href="#clientCard">客户审核</a><a href="#handoffCard">执行交接</a><a href="#configForm">车级排班</a></nav>
 
         <section class="ss-card" id="clientCard">
           <h2>客户授权与客户草稿</h2>
@@ -29,6 +31,21 @@
           <div id="grantRows" class="ss-muted"></div>
           <div id="draftRows" class="ss-muted"></div>
           <article class="ss-proposal" id="draftView" hidden></article>
+        </section>
+
+        <section class="ss-card" id="handoffCard">
+          <h2>采纳方案与执行交接</h2>
+          <div id="handoffRows" class="ss-muted"></div>
+          <details><summary>大数据平台地图资料</summary>
+            <p class="ss-muted">粘贴平台授权的线路预览地址。也可上传 WGS84 GeoJSON，填写媒体类型 kind 和线路或点位名称 key。</p>
+            <form id="mapForm" class="ss-row">
+              <label class="ss-wide">授权地图 URL<input type="url" name="shareUrl" /></label>
+              <label class="ss-wide">地铁参考图 URL<input type="url" name="metroShareUrl" /></label>
+              <label>线路坐标文件<input type="file" name="geojson" accept=".json,.geojson" /></label>
+              <label><button class="portal-button secondary" type="submit">保存地图证据</button></label>
+            </form>
+            <p id="mapStatus" class="ss-muted"></p>
+          </details>
         </section>
 
         <section class="ss-card">
@@ -88,6 +105,6 @@
         </section>
       </section>
     </main>
-    <script src="/assets/ops.js"></script>
+    <script src="/assets/proposal-map.js"></script><script src="/assets/ops.js"></script>
   </body>
 </html>

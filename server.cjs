@@ -13,6 +13,7 @@ const assets = Object.fromEntries([
   "assets/vendor/jszip.min.js", "assets/portal.js", "assets/portal.css",
   "client.html", "ops.html", "assets/client.js", "assets/client.css", "assets/ops.js",
   "roadshow.html", "assets/roadshow.css", "assets/roadshow.js",
+  "assets/proposal-map.js", "assets/proposal-map.css",
 ].map((file) => ["/" + file, file]));
 assets["/"] = "index.html";
 assets["/client"] = "client.html";
@@ -96,7 +97,7 @@ function createApplication(store, env = process.env, request = fetch) {
   return async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
-    res.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' https://flairmedia.com.cn:38880; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     res.setHeader("Cache-Control", "no-store");
     try {
       const url = new URL(req.url, "http://internal");
@@ -195,7 +196,7 @@ function createApplication(store, env = process.env, request = fetch) {
       if (!project) fail(404, "项目不存在。");
       if (p.length === 3 && method === "GET") return json(res, project);
       const canEdit = me.role !== "viewer" && !project.archived;
-      if (["client-drafts", "clients", "dispatch", "changes"].includes(p[3])) {
+      if (["client-drafts", "clients", "dispatch", "changes", "handoff", "map-evidence"].includes(p[3])) {
         const handled = await routes.team(req, res, url, p, me, project, canEdit);
         if (handled) return handled;
       }

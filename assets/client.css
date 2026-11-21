@@ -88,3 +88,8 @@ body.ss-doc .ss-proposal { padding: 20px; }
   .product-bar, .ss-toolbar, .ss-form, .ss-side, #msg, #shareLink { display: none !important; }
   .ss-layout { display: block; } .ss-card { border: 0; padding: 0; } body.ss-app { background: #fff; }
 }
+.ss-report-nav { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+.ss-report-nav a, .ss-report-nav button { display: inline-block; padding: .38rem .62rem; border: 1px solid #d9e1df; border-radius: 6px; font-size: .9rem; text-decoration: none; }
+.ss-report-nav button[aria-pressed="true"] { background: #21584f; color: #fff; }
+.ss-advanced > summary { margin: 1rem 0; cursor: pointer; font-weight: 700; }
+#intakeView[hidden], #coverage-map[hidden], #actual-coverage-map[hidden] { display: none; }
