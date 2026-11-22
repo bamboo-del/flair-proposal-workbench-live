@@ -323,7 +323,7 @@ function presentResult(result) {
   $("actual-coverage-map").hidden = !showMap;
   if (showMap) {
     $("map-count").textContent = `${plan.map.features.length} 个地图要素`;
-    window.FlairMap.mount($("actual-coverage-map"), plan.map);
+    window.FlairMap.mount($("actual-coverage-map"), plan.map, { basemap: true });
   } else renderMap(plan.coverage);
   renderAssumption(plan);
   renderDimensions(result);

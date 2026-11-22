@@ -97,10 +97,11 @@ function createApplication(store, env = process.env, request = fetch) {
   return async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
-    res.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' https://flairmedia.com.cn:38880; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     res.setHeader("Cache-Control", "no-store");
     try {
       const url = new URL(req.url, "http://internal");
+      const mapTiles = ["/roadshow", "/roadshow.html"].includes(url.pathname) ? " https://tile.openstreetmap.org" : "";
+      res.setHeader("Content-Security-Policy", `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:${mapTiles}; frame-src 'self' https://flairmedia.com.cn:38880; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
       const p = url.pathname.split("/").filter(Boolean);
       const method = req.method;
       if (url.pathname === "/healthz" && method === "GET") {

@@ -4,6 +4,7 @@
 .flair-route-canvas { cursor: grab; touch-action: pan-y; }
 .flair-route-canvas:active { cursor: grabbing; }
 .proposal-map-tools { position: absolute; top: .5rem; left: .5rem; display: flex; gap: .25rem; }
+.proposal-map-attribution { position: absolute; bottom: .2rem; right: .35rem; padding: .1rem .3rem; background: #fff; border-radius: 3px; font-size: .68rem; }
 .proposal-map-tools button, .proposal-map-items button { border: 1px solid #acbdb7; border-radius: 5px; background: white; color: #21403a; padding: .35rem .55rem; font: inherit; cursor: pointer; }
 .proposal-map-items button[aria-pressed="true"] { color: white; background: #22574e; }
 .proposal-map-items { display: flex; gap: .4rem; flex-wrap: wrap; margin: .45rem 0; }
