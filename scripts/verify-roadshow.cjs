@@ -22,9 +22,18 @@ test("路演可匿名生成七要素、改预算档期并保留核心组合", as
   try {
     const page = await request("/roadshow");
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /Manner|提案/);
+    const html = await page.text();
+    assert.match(html, /<h1>户外广告投放提案<\/h1>/);
+    assert.doesNotMatch(html, /早高峰咖啡补给计划/);
+    for (const step of ["assumptions", "media", "execution"]) {
+      const route = await request("/roadshow/" + step);
+      assert.equal(route.status, 200);
+      assert.match(await route.text(), new RegExp('data-page="' + step + '"'));
+    }
     const config = await (await request("/api/roadshow")).json();
     assert.equal(config.brief.brandType, "Manner Coffee");
+    assert.equal(config.emptyBrief.brandType, "");
+    assert.equal(config.emptyBrief.budgetWan, null);
     assert.equal(config.aiEnabled, false);
     const extracted = await (await request("/api/roadshow/extract", { text: config.briefText.replace("200万元", "100万元") })).json();
     assert.equal(extracted.brief.budgetWan, 100);
@@ -47,6 +56,18 @@ test("路演可匿名生成七要素、改预算档期并保留核心组合", as
     }
     assert.ok(small.diff.kept.length && small.diff.removed.length);
     assert.ok(large.diff.kept.length && large.diff.added.length);
+    const timeAndBudget = (result) => result.plan.responses.find((row) => row.key === "budget");
+    assert.match(timeAndBudget(standard).need, /预算 200 万元/);
+    assert.match(timeAndBudget(large).need, /预算 500 万元/);
+    assert.match(timeAndBudget(large).answer, /未分配/);
+    assert.deepEqual(large.plan.window, standard.plan.window);
+    const businessNote = "要在工作日晚高峰面向通勤者推广新服务。\n".repeat(35).trim();
+    const expanded = await ask({ ...config.brief, businessNote, budgetWan: 100,
+      zones: config.zones.map(({ id }) => ({ id, priority: false })) });
+    assert.equal(expanded.plan.responses.find((row) => row.key === "business").need, "门店引流：" + businessNote);
+    const audienceResponse = expanded.plan.responses.find((row) => row.key === "audience").answer;
+    assert.match(audienceResponse, /未命中：.*实际人群触达待监测。/);
+    assert.doesNotMatch(audienceResponse, /100%/);
     assert.notEqual(shifted.diff.impact.firstNight.to, shifted.diff.impact.firstNight.from);
     assert.equal(shifted.plan.window.end, "2027-07-04");
     assert.equal((await request("/api/roadshow/plan", { brief: { ...config.brief, startDate: "2026-05-10" } })).status, 422);

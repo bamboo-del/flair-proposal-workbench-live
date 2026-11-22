@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>投放提案演练 · Flair Proposal</title>
+  <title>户外广告投放提案 · 新云传媒</title>
   <link rel="stylesheet" href="/assets/roadshow.css">
   <link rel="stylesheet" href="/assets/proposal-map.css">
   <script src="/assets/proposal-map.js" defer></script>
@@ -16,37 +16,24 @@
     <nav aria-label="工作台入口"><a href="/client">客户自助</a><a href="/ops">执行调度</a><a href="/">团队工作台</a></nav>
   </header>
   <main class="page">
-    <section class="hero" aria-labelledby="campaign-title">
-      <div class="hero-copy">
-        <h1 id="campaign-title">早高峰咖啡补给计划</h1>
-        <p class="byline" id="campaign-brand">Manner Coffee</p>
-        <p id="campaign-context">上海核心商圈公交车身与地铁出入口投放。拟议案例，当前使用合成演示数据。</p>
-        <a class="button primary" href="/client">创建我的提案</a>
-        <a class="button" href="#brief">调整当前案例 <span aria-hidden="true">↓</span></a>
-      </div>
-      <figure class="coverage-graphic">
-        <figcaption><span id="map-title">目标商圈 · 覆盖示意</span><span id="map-count"></span></figcaption>
-        <div id="actual-coverage-map" hidden></div>
-        <div class="coverage-map" id="coverage-map"></div>
-        <p id="map-schematic-note">实心点表示命中。连线仅示意商圈顺序。</p>
-      </figure>
-    </section>
-
-    <div id="scoreline" class="scoreline" aria-label="当前方案指标"></div>
-    <div class="source-row" id="source-row" hidden>
-      <div class="source-choices" aria-label="方案数据源">
-        <button class="button" type="button" id="show-demo" aria-pressed="true">合成演示方案</button>
-        <button class="button" type="button" id="show-live" aria-pressed="false" disabled>红豆核验方案</button>
-      </div>
-      <p class="faint" id="source-note"></p>
-      <a class="source-link" href="#inventory-title">查询红豆档期 ↓</a>
+    <div class="workflow-heading">
+      <h1>户外广告投放提案</h1>
+      <nav class="workflow-nav" aria-label="提案步骤">
+        <a href="/roadshow" data-step="brief">1. 填写需求</a>
+        <a href="/roadshow/assumptions" data-step="assumptions">2. 投放假设</a>
+        <a href="/roadshow/media" data-step="media">3. 媒体与预算</a>
+        <a href="/roadshow/execution" data-step="execution">4. 执行与验收</a>
+      </nav>
     </div>
-
-    <section class="brief-layout" aria-label="客户需求与投放假设">
+    <div id="result-notice" class="workflow-notice" hidden>
+      <p id="result-status" role="status" aria-live="polite"></p>
+      <a href="/roadshow" data-step="brief">回到需求</a>
+    </div>
+    <section class="brief-layout workflow-page" data-page="brief" aria-label="客户需求">
       <form class="brief-form" id="brief" novalidate>
         <div class="section-heading">
-          <h2>客户 Brief</h2>
-          <button type="button" class="button" id="load-example">还原 Manner 示例</button>
+          <h2>填写投放需求</h2>
+          <button type="button" class="button" id="load-example">载入 Manner 示例</button>
         </div>
         <label class="field">
           <span>用一段话描述投放需求</span>
@@ -65,10 +52,8 @@
         </fieldset>
         <fieldset class="field-row">
           <legend>生意目标</legend>
-          <div class="pairs">
-            <label class="field"><span>主要任务</span><select name="businessGoal"></select></label>
-            <label class="field"><span>业务背景</span><input name="businessNote" maxlength="300"></label>
-          </div>
+          <label class="field"><span>主要任务</span><select name="businessGoal"></select></label>
+          <label class="field"><span>业务背景</span><textarea name="businessNote" rows="4" maxlength="1600"></textarea></label>
         </fieldset>
         <fieldset class="field-row">
           <legend>活动主目标</legend>
@@ -114,7 +99,9 @@
         </div>
         <div class="conflicts" id="conflicts" hidden></div>
       </form>
-
+    </section>
+    <div id="report" hidden>
+    <section class="workflow-page" data-page="assumptions" hidden aria-labelledby="assumption-title">
       <aside class="assumption" aria-labelledby="assumption-title">
         <div class="section-heading"><h2 id="assumption-title">一页投放假设</h2></div>
         <p class="faint" id="assumption-context">生成后逐条回应客户的七项需求。</p>
@@ -125,21 +112,37 @@
           <button class="button" id="print" type="button" disabled>打印 / PDF</button>
         </div>
       </aside>
-    </section>
-
-    <div id="report" hidden>
       <section class="report-section" aria-labelledby="judging-title">
         <div class="section-heading"><h2 id="judging-title">七项评审维度</h2></div>
         <ol class="judging" id="dimensions"></ol>
+      </section>
+      <a class="button primary next-step" href="/roadshow/media" data-step="media">查看媒体与预算 →</a>
+    </section>
+    <section class="workflow-page" data-page="media" hidden aria-label="媒体与预算">
+      <section class="media-overview" aria-labelledby="media-overview-title">
+        <div>
+          <h2 id="media-overview-title">媒体与预算</h2>
+          <div id="scoreline" class="scoreline" aria-label="当前方案指标"></div>
+          <div class="source-row" id="source-row" hidden>
+            <div class="source-choices" aria-label="方案数据源">
+              <button class="button" type="button" id="show-demo" aria-pressed="true">合成演示方案</button>
+              <button class="button" type="button" id="show-live" aria-pressed="false" disabled>红豆核验方案</button>
+            </div>
+            <p class="faint" id="source-note"></p>
+          </div>
+        </div>
+        <figure class="coverage-graphic">
+          <figcaption><span id="map-title">目标商圈 · 覆盖示意</span><span id="map-count"></span></figcaption>
+          <div id="actual-coverage-map" hidden></div>
+          <div class="coverage-map" id="coverage-map"></div>
+          <p id="map-schematic-note">实心点表示命中。连线仅示意商圈顺序。</p>
+        </figure>
       </section>
       <section class="report-section" aria-labelledby="delta-title">
         <div class="section-heading"><h2 id="delta-title">方案调整</h2><span id="timing" class="faint"></span></div>
         <div id="delta"></div>
       </section>
-      <section class="report-section details-layout" aria-label="资源与执行明细">
-        <div id="resources"></div>
-        <div id="execution"></div>
-      </section>
+      <section class="report-section"><div id="resources"></div></section>
       <section class="report-section supplemental" aria-labelledby="supplemental-title">
         <div class="section-heading"><h2 id="supplemental-title">补充核验</h2></div>
         <div class="details-layout">
@@ -156,8 +159,14 @@
           </section>
         </div>
       </section>
+      <a class="button primary next-step" href="/roadshow/execution" data-step="execution">查看执行与验收 →</a>
+    </section>
+    <section class="workflow-page" data-page="execution" hidden aria-label="执行与验收">
+      <div id="execution"></div>
+      <a class="button next-step" href="/roadshow" data-step="brief">修改投放需求</a>
+    </section>
     </div>
   </main>
-  <footer class="page footer"><span>新云传媒 · 户外媒体提案演练</span><a href="#campaign-title">回到顶部 ↑</a></footer>
+  <footer class="page footer">新云传媒 · 户外媒体提案</footer>
 </body>
 </html>

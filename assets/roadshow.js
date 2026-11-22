@@ -16,6 +16,7 @@ const checkedAt = (value) => {
 const wan = (yuan) => compactNumber.format(yuan / 10000) + " 万";
 const moneyRange = (range) => wan(range.min) + " – " + wan(range.max);
 const pct = (n) => n + "%";
+const zoneHits = (coverage) => coverage.zones.filter((zone) => zone.covered).length + " / " + coverage.zones.length;
 const kind = (mode) => ({ bus: "公交车身", metro: "地铁出入口" })[mode] || mode;
 const choices = (name) => Array.from(form.querySelectorAll('input[name="' + name + '"]'));
 const list = (rows) => rows.length ? '<ul class="detail-list">' + rows.map((text) => "<li>" + esc(text) + "</li>").join("") + "</ul>" : '<p class="faint">无</p>';
@@ -25,6 +26,7 @@ const table = (head, rows) => richTable(head, rows.map((row) => row.map(esc)));
 let catalog;
 let requestVersion = 0;
 let pendingPlan;
+let planRequest;
 let current;
 let currentCriteria;
 let previousBrief;
@@ -33,16 +35,48 @@ let activeResult;
 let activeBrief;
 let hasPlan = false;
 let extraVersion = 0;
+let started = false;
+let step;
+let mountedMap;
+const steps = Object.fromEntries(Array.from(document.querySelectorAll(".workflow-nav [data-step]"), (link) => [link.dataset.step, link.pathname]));
+const draftKey = "flair-roadshow-draft";
 
-async function api(path = "", data) {
+async function api(path = "", data, signal) {
   const response = await fetch("/api/roadshow" + path, data === undefined ? undefined : {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-flair-client": "1" },
     body: JSON.stringify(data),
+    signal,
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "请求未完成。");
   return result;
+}
+
+function saveDraft() {
+  try { sessionStorage.setItem(draftKey, JSON.stringify({ brief: readBrief(), text: $("brief-text").value, started })); } catch {}
+}
+
+function showStep(next, push = false) {
+  if (push && location.pathname !== steps[next]) history.pushState(null, "", steps[next]);
+  if (next !== step) window.scrollTo(0, 0);
+  step = next;
+  for (const page of document.querySelectorAll("[data-page]")) page.hidden = page.dataset.page !== step;
+  for (const link of document.querySelectorAll(".workflow-nav [data-step]")) {
+    if (link.dataset.step === step) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+  syncStep();
+}
+
+function syncStep() {
+  $("result-notice").hidden = step === "brief" || hasPlan;
+  $("report").hidden = !hasPlan || step === "brief";
+  $("result-status").textContent = $("plan-status").textContent || "请先填写需求并生成提案。";
+  if (!$("report").hidden && step === "media" && activeResult.plan.map && mountedMap !== activeResult.plan.map) {
+    mountedMap = activeResult.plan.map;
+    window.FlairMap.mount($("actual-coverage-map"), mountedMap, { basemap: true });
+  }
 }
 
 function optionHTML(value, label) {
@@ -74,7 +108,7 @@ function readBrief() {
       priority: e.closest(".zone-line").querySelector('[name="priority"]').checked,
     })),
     duration: Number(field("duration").value),
-    budgetWan: Number(field("budgetWan").value),
+    budgetWan: field("budgetWan").value ? Number(field("budgetWan").value) : null,
     media: choices("media").filter((e) => e.checked).map((e) => e.value),
     kpis: choices("kpis").filter((e) => e.checked).map((e) => e.value),
   };
@@ -131,10 +165,9 @@ function renderMap(coverage) {
 
 function renderScore(plan) {
   const { totals: t, counts, coverage } = plan;
-  const covered = coverage.zones.filter((zone) => zone.covered).length;
   const scores = [
     ["预算上限", wan(t.budget)], [t.pendingProduction ? "已计报价 · " + t.pendingProduction + " 处制作费待核" : "区间报价", moneyRange(t.total)],
-    ["目标圈命中 · 加权 " + pct(coverage.percent), covered + " / " + coverage.zones.length],
+    ["规划命中商圈", zoneHits(coverage)],
     ["资源数量", counts.bus + " 辆 / " + counts.metro + " 处"],
   ];
   $("scoreline").innerHTML = scores.map(([label, value]) => '<div class="score"><small>' + esc(label) + "</small><strong>" + esc(value) + "</strong></div>").join("");
@@ -163,7 +196,7 @@ function renderDimensions({ plan, strategy, narrative, elapsedMs, queryMs }) {
       "预算 " + wan(totals.budget) + "，对比已计报价上限余 " + wan(totals.budget - totals.total.max) + "。" +
       "预留 " + Math.round(totals.buffer * 100) + "% 执行缓冲，独立执行及监测服务费待团队核价。" +
       (totals.pendingProduction ? " " + totals.pendingProduction + " 处制作费待核。" : "") + (adjustment ? " " + adjustment : "")],
-    ["效果预估与衡量", "目标圈加权命中 " + pct(coverage.percent) + "。 " + coverage.basis,
+    ["效果预估与衡量", "规划命中 " + zoneHits(coverage) + " 个目标商圈，实际人群触达待监测。 " + coverage.basis,
       monitoring.kpis.map((row) => row.name + "（" + (row.type === "估算" ? "估算" : "投放后验收") + "）").join(" · ")],
     ["执行可行性", plan.window.start + " 上刊，" + schedule.nights.length + " 晚施工，" + plan.window.end + " 刊期结束。", schedule.crew.source + "。变更可在执行调度预览替补与重排。"],
     ["服务与响应", (plan.synthetic ? "本轮服务端计算 " + compactNumber.format(elapsedMs) : "本轮红豆请求往返 " + compactNumber.format(queryMs)) +
@@ -193,8 +226,9 @@ function renderDelta(diff, synthetic) {
     return;
   }
   const { impact: i } = diff;
-  quick.textContent = "本轮调整　保留 " + diff.kept.length + " · 新增 " + diff.added.length +
-    " · 移除 " + diff.removed.length + " · 覆盖 " + pct(i.coverage.from) + " → " + pct(i.coverage.to);
+  const budget = diff.fields.find((field) => field.label === "预算（万元）");
+  quick.textContent = (budget ? `预算 ${budget.from} 万元 → ${budget.to} 万元。` : "") +
+    "本轮资源保留 " + diff.kept.length + " · 新增 " + diff.added.length + " · 移除 " + diff.removed.length;
   const groups = [
     ["保留", diff.kept.map((r) => r.name + " × " + r.units)],
     ["数量调整", diff.changed.map((r) => r.name + " " + r.from + " → " + r.to)],
@@ -203,11 +237,11 @@ function renderDelta(diff, synthetic) {
     ["移除", diff.removed.map((r) => r.name + " × " + r.units + (r.reason ? " · " + r.reason : ""))],
   ];
   const metrics = [
-    ["目标圈加权命中", pct(i.coverage.from) + " → " + pct(i.coverage.to)],
     ["公交 / 地铁", i.bus.from + " 辆 / " + i.metro.from + " 处 → " + i.bus.to + " 辆 / " + i.metro.to + " 处"],
     ["费用区间", wan(i.totalMin.from) + "–" + wan(i.totalMax.from) + " → " + wan(i.totalMin.to) + "–" + wan(i.totalMax.to)],
     ["施工夜次", i.nights.from + " → " + i.nights.to + " 晚"],
   ];
+  if (budget) metrics.unshift(["预算上限", `${budget.from} 万元 → ${budget.to} 万元`]);
   if (i.window.from !== i.window.to) metrics.push(["投放档期", i.window.from + " → " + i.window.to]);
   $("delta").innerHTML = '<div class="delta-grid">' + metrics.map(([key, value]) => '<div><dl><dt class="faint">' + esc(key) + "</dt><dd>" +
     esc(value) + "</dd></dl></div>").join("") + '</div><div class="delta-lists">' + groups.map(([key, rows]) =>
@@ -296,15 +330,13 @@ function renderConflict(plan, brief) {
 }
 
 function criteria(brief) {
-  return JSON.stringify([brief.campaignGoal, brief.audiences, brief.zones, brief.startDate, brief.duration,
-    brief.budgetWan, brief.media, brief.busFormat, brief.mode, brief.mustKeep]);
+  return JSON.stringify(brief);
 }
 
 function presentResult(result) {
   activeResult = result;
-  const { plan, elapsedMs, queryMs, strategy } = result;
+  const { plan, elapsedMs, queryMs } = result;
   const live = !plan.synthetic;
-  $("report").hidden = false;
   $("source-row").hidden = false;
   $("show-demo").setAttribute("aria-pressed", String(!live));
   $("show-live").setAttribute("aria-pressed", String(live));
@@ -312,9 +344,6 @@ function presentResult(result) {
     ? "红豆档期余量 · " + (plan.inventoryAsOf ? "查询于 " + checkedAt(plan.inventoryAsOf) + " · " : "") +
       (plan.inventoryPartial ? "查询范围有限 · " : "") + "报价、覆盖和施工为估算"
     : "库存、覆盖底图与刊例均为演示口径。";
-  $("campaign-title").textContent = strategy?.title || "户外媒体投放提案";
-  $("campaign-brand").textContent = plan.brief.brandType || "投放演练";
-  $("campaign-context").textContent = plan.brief.media.map(kind).join("与") + "投放。当前为拟议案例。";
   renderScore(plan);
   const showMap = Boolean(plan.map?.features?.length || plan.map?.shareUrl);
   $("map-title").textContent = showMap ? "投放路线与点位" : "目标商圈 · 覆盖示意";
@@ -323,7 +352,6 @@ function presentResult(result) {
   $("actual-coverage-map").hidden = !showMap;
   if (showMap) {
     $("map-count").textContent = `${plan.map.features.length} 个地图要素`;
-    window.FlairMap.mount($("actual-coverage-map"), plan.map, { basemap: true });
   } else renderMap(plan.coverage);
   renderAssumption(plan);
   renderDimensions(result);
@@ -332,6 +360,7 @@ function presentResult(result) {
   renderExecution(plan);
   $("timing").textContent = live ? "红豆请求往返 " + compactNumber.format(queryMs) + " ms" : "本轮计算 " + compactNumber.format(elapsedMs) + " ms";
   reportState(true);
+  syncStep();
 }
 
 function clearReport() {
@@ -340,17 +369,18 @@ function clearReport() {
   $("assumption-rows").replaceChildren();
   $("assumption-delta").hidden = true;
   $("scoreline").replaceChildren();
-  $("report").hidden = true;
+  reportState(false);
+  syncStep();
   $("source-row").hidden = true;
   $("map-count").textContent = "";
   $("coverage-map").replaceChildren();
 }
 
-async function updatePlan(brief, version) {
+async function updatePlan(brief, version, signal) {
   const key = criteria(brief);
   const prior = current && currentCriteria !== key ? current.plan.brief : undefined;
   try {
-    const result = await api("/plan", { brief, previous: prior });
+    const result = await api("/plan", { brief, previous: prior }, signal);
     if (version !== requestVersion) return;
     if (result.plan.status !== "ready") {
       renderConflict(result.plan, brief);
@@ -358,28 +388,40 @@ async function updatePlan(brief, version) {
       clearReport();
       return;
     }
+    let inventory;
+    let inventoryError;
+    let queryMs;
+    if (catalog.platformMap) {
+      const start = performance.now();
+      try {
+        inventory = await api("/inventory", { brief, previous: prior || previousBrief }, signal);
+        queryMs = Math.ceil(performance.now() - start);
+      } catch (error) { inventoryError = error.message; }
+    }
+    if (version !== requestVersion) return;
     if (!prior && current) result.diff = current.diff;
     if (prior) previousBrief = prior;
     currentCriteria = key;
     current = result;
     $("conflicts").hidden = true;
-    presentResult(result);
+    if (inventory) renderInventory(inventory, queryMs);
+    if (inventoryError) $("inventory-result").textContent = inventoryError;
+    presentResult(liveResult || result);
     $("plan-status").textContent = "已更新本轮提案";
-    if (catalog.platformMap) queryExtra($("query-inventory"), $("inventory-result"), "/inventory", (data, ms) => {
-      renderInventory(data, ms);
-      if (liveResult) presentResult(liveResult);
-    });
   } catch (error) {
     if (version !== requestVersion) return;
     $("conflicts").hidden = true;
-    clearReport();
     $("plan-status").textContent = "更新失败 · " + error.message;
+    clearReport();
   }
 }
 
 function queuePlan(delay = 180) {
   if (!catalog) return;
   clearTimeout(pendingPlan);
+  planRequest?.abort();
+  planRequest = new AbortController();
+  const { signal } = planRequest;
   const version = ++requestVersion;
   extraVersion++;
   liveResult = null;
@@ -388,9 +430,10 @@ function queuePlan(delay = 180) {
   reportState(false);
   $("inventory-result").replaceChildren();
   $("ai-result").replaceChildren();
-  $("plan-status").textContent = "正在更新…";
-  $("source-note").textContent = "正按新条件更新。";
-  pendingPlan = setTimeout(() => updatePlan(brief, version), delay);
+  $("plan-status").textContent = brief.budgetWan ? `正在按 ${brief.budgetWan} 万元预算生成提案…` : "正在检查投放条件…";
+  saveDraft();
+  syncStep();
+  pendingPlan = setTimeout(() => updatePlan(brief, version, signal), delay);
 }
 
 function inventoryStatus(data) {
@@ -414,16 +457,16 @@ function renderInventory(data, queryMs) {
   if (live?.status === "ready") {
     liveResult = { ...(data.plan.plan ? data.plan : {}), plan: live, strategy: data.plan.strategy || current.strategy, queryMs };
     html += "<h3>按红豆候选重算的估算</h3><p>区间报价 " + esc(moneyRange(live.totals.total)) +
-      " · 目标圈加权命中 " + esc(pct(live.coverage.percent)) + " · 公交 " + esc(live.counts.bus) +
+      " · 规划命中商圈 " + esc(zoneHits(live.coverage)) + " · 公交 " + esc(live.counts.bus) +
       ' 辆 / 地铁 ' + esc(live.counts.metro) + ' 处</p><button class="button" type="button" id="open-live">查看红豆完整方案</button>';
   } else {
     liveResult = null;
-    if (activeResult && !activeResult.plan.synthetic) presentResult(current);
     if (rows.length) html += '<p class="faint">本次确认的候选不足以生成当前条件的完整方案。</p>';
   }
   $("inventory-result").innerHTML = html;
   $("show-live").disabled = !liveResult;
   $("open-live")?.addEventListener("click", () => {
+    if (!hasPlan || !liveResult) return;
     presentResult(liveResult);
     $("source-row").scrollIntoView({ block: "start" });
     $("show-live").focus({ preventScroll: true });
@@ -444,7 +487,7 @@ async function queryExtra(button, result, route, render) {
   button.disabled = true;
   result.textContent = "正在请求…";
   try {
-    const data = await api(route, { brief: readBrief(), previous: previousBrief, ...(live ? { source: "redbean" } : {}) });
+    const data = await api(route, { brief: activeResult.plan.brief, previous: previousBrief, ...(live ? { source: "redbean" } : {}) });
     if (version === extraVersion) render(data, Math.ceil(performance.now() - start), live ? "红豆候选方案" : "合成演示方案");
   } catch (error) {
     if (version === extraVersion) result.textContent = error.message;
@@ -455,17 +498,29 @@ async function queryExtra(button, result, route, render) {
 
 function downloadProposal() {
   if (!hasPlan) return;
-  const title = $("campaign-title").textContent + " · " + $("campaign-brand").textContent;
-  const report = document.querySelector("main").cloneNode(true);
-  for (const el of report.querySelectorAll("#brief, .hero .button, .form-actions, .supplemental .button, .source-choices, .source-link")) el.remove();
+  const title = activeResult.plan.brief.brandType ? activeResult.plan.brief.brandType + " · 户外广告投放提案" : "户外广告投放提案";
+  const report = $("report").cloneNode(true);
+  report.className = "page";
+  for (const page of report.querySelectorAll("[data-page]")) page.hidden = false;
+  for (const el of report.querySelectorAll(".next-step, .form-actions, .supplemental .button, .source-choices")) el.remove();
+  if (activeResult.plan.map) {
+    const map = report.querySelector("#actual-coverage-map");
+    map.replaceChildren();
+    for (const [label, href] of [["打开大数据平台地图", activeResult.plan.map.shareUrl], ["打开地铁原图", activeResult.plan.map.metroShareUrl]]) {
+      if (!href) continue;
+      const link = document.createElement("a");
+      link.href = href;
+      link.textContent = label;
+      map.append(link, document.createElement("br"));
+    }
+  }
   for (const disclosure of report.querySelectorAll("details")) disclosure.open = true;
   for (const result of report.querySelectorAll(".supplemental-result:empty")) result.closest("section").remove();
   if (!report.querySelector(".supplemental-result")) report.querySelector(".supplemental").remove();
-  report.querySelector(".brief-layout").style.display = "block";
   const sheet = document.querySelector('link[href="/assets/roadshow.css"]').sheet;
   const styles = Array.from(sheet.cssRules).map((rule) => rule.cssText).join("\n");
   const html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' +
-    esc(title) + "</title><style>" + styles + "</style></head><body>" + report.outerHTML + "</body></html>";
+    esc(title) + "</title><style>" + styles + "</style></head><body><h1 class=\"page\">" + esc(title) + "</h1>" + report.outerHTML + "</body></html>";
   const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
@@ -480,24 +535,29 @@ function loadExample() {
   $("brief-text").value = catalog.briefText;
   $("extract-note").textContent = "";
   writeBrief(catalog.brief);
-  queuePlan(0);
+  if (started) queuePlan(0);
+  else saveDraft();
 }
 
 function wireForm() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    started = true;
     queuePlan(0);
+    showStep("assumptions", true);
   });
   form.addEventListener("input", ({ target }) => {
-    if (!target.name) return;
+    if (!target.name) { saveDraft(); return; }
     if (target.name === "priority" && target.checked) target.closest(".zone-line").querySelector('[name="zone"]').checked = true;
     if (target.name === "zone" && !target.checked) target.closest(".zone-line").querySelector('[name="priority"]').checked = false;
-    queuePlan();
+    if (started) queuePlan();
+    else { formState(readBrief()); saveDraft(); }
   });
   for (const button of form.querySelectorAll("[data-budget]")) {
     button.addEventListener("click", () => {
       field("budgetWan").value = button.dataset.budget;
-      queuePlan(0);
+      if (started) queuePlan();
+      else { formState(readBrief()); saveDraft(); }
     });
   }
   $("load-example").addEventListener("click", loadExample);
@@ -516,7 +576,8 @@ function wireForm() {
       }
       writeBrief({ ...readBrief(), ...result.brief });
       $("extract-note").textContent = result.missing?.length ? "请补充或确认 " + result.missing.join("、") + "。" : "已提取，请核对。";
-      queuePlan(0);
+      if (started) queuePlan();
+      else saveDraft();
     } catch (error) {
       $("extract-note").textContent = error.message;
     } finally {
@@ -531,11 +592,24 @@ function wireForm() {
     window.addEventListener("afterprint", () => { for (const el of collapsed) el.open = false; }, { once: true });
     window.print();
   });
-  $("show-demo").addEventListener("click", () => presentResult(current));
+  $("show-demo").addEventListener("click", () => { if (hasPlan) presentResult(current); });
   $("show-live").addEventListener("click", () => { if (liveResult) presentResult(liveResult); });
   $("query-inventory").addEventListener("click", () => queryExtra($("query-inventory"), $("inventory-result"), "/inventory", renderInventory));
   $("query-ai").addEventListener("click", () => queryExtra($("query-ai"), $("ai-result"), "/ai", renderAi));
 }
+
+function stepFromPath() {
+  return Object.keys(steps).find((key) => steps[key] === location.pathname) || "brief";
+}
+
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("a[data-step]");
+  if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  showStep(link.dataset.step, true);
+});
+window.addEventListener("popstate", () => showStep(stepFromPath()));
+showStep(stepFromPath());
 
 async function init() {
   try {
@@ -543,7 +617,12 @@ async function init() {
     buildForm();
     wireForm();
     $("ai-state").textContent = catalog.aiEnabled ? "点击后生成选点与预算取舍解读。" : "未配置模型。主提案由规则生成。";
-    loadExample();
+    let saved;
+    try { saved = JSON.parse(sessionStorage.getItem(draftKey)); } catch {}
+    started = saved?.started === true;
+    writeBrief(saved?.brief || catalog.emptyBrief);
+    $("brief-text").value = saved?.text || "";
+    if (started) queuePlan(0);
   } catch (error) {
     $("plan-status").textContent = error.message;
   }
